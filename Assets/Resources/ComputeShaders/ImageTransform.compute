@@ -1,0 +1,35 @@
+#pragma kernel ImageSample
+
+Texture2D<float4> X_tex2D;
+SamplerState sampler_linear_clamp;
+RWStructuredBuffer<float> Optr;
+
+int O_height;
+int O_width;
+int O_channels;
+int X_height;
+int X_width;
+float4x4 affineMatrix;
+
+[numthreads(8, 8, 1)]
+void ImageSample(uint3 id : SV_DispatchThreadID)
+{
+    uint y = id.x;
+    uint x = id.y;
+
+    if (y >= (uint)O_height || x >= (uint)O_width)
+        return;
+
+    float4 p = mul(affineMatrix, float4((float)x, (float)y, 1.0, 1.0));
+    float2 uv = (p.xy + 0.5) / float2((float)X_width, (float)X_height);
+
+    float4 sampled = float4(0.0, 0.0, 0.0, 1.0);
+    if (uv.x >= 0.0 && uv.x <= 1.0 && uv.y >= 0.0 && uv.y <= 1.0)
+        sampled = X_tex2D.SampleLevel(sampler_linear_clamp, uv, 0);
+
+    uint baseIndex = (y * (uint)O_width + x) * (uint)O_channels;
+    if (O_channels > 0) Optr[baseIndex + 0] = sampled.r;
+    if (O_channels > 1) Optr[baseIndex + 1] = sampled.g;
+    if (O_channels > 2) Optr[baseIndex + 2] = sampled.b;
+    if (O_channels > 3) Optr[baseIndex + 3] = sampled.a;
+}
